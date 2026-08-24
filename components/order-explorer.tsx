@@ -341,9 +341,15 @@ function OrderDetail({
             </div>
           </div>
         ) : user.role !== "developer" ? (
-          <p className="mt-3 rounded-xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-400">
-            Siz investor rolidasiz. Taklif yuborish uchun developer ro‘li kerak.
-          </p>
+          <div className="mt-3 space-y-1.5 rounded-xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-400">
+            <p>Taklif yuborish faqat developer roll uchun ochiq.</p>
+            <Link
+              href={`/orders/${order.id}`}
+              className="text-xs underline underline-offset-2 hover:opacity-80"
+            >
+              Buyurtmani shaxsiy sahifasida ochish — takliflarni ko‘rish va boshqarish
+            </Link>
+          </div>
         ) : (
           <form onSubmit={send} className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-3">

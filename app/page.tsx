@@ -11,7 +11,7 @@ import {
   withProjectMetrics
 } from "@/lib/utils";
 import ProjectCard from "@/components/project-card";
-import { SectionHeading, SkeletonGrid } from "@/components/ui";
+import { ErrorState, SectionHeading, SkeletonGrid } from "@/components/ui";
 
 export default async function HomePage() {
   const supabase = createServerSupabase();
@@ -102,7 +102,12 @@ export default async function HomePage() {
             </Link>
           }
         />
-        {projects.data == null && supabase ? (
+        {projects.error ? (
+          <ErrorState
+            title="Loyihalarni yuklab bo‘lmadi"
+            text="Supabase’dan ma’lumot o‘qishda xatolik. Baza yaratilgandan so‘ng supabase/schema.sql fayli yuborilganiga ishonch hosil qiling."
+          />
+        ) : projects.data == null && supabase ? (
           <SkeletonGrid count={3} />
         ) : projectCards.length === 0 ? (
           <div className="card flex flex-col items-center gap-3 px-6 py-12 text-center">

@@ -272,16 +272,15 @@ export default async function DashboardPage() {
                 {myProposals.map((p) => (
                   <li key={p.id} className="flex items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
-                      {p.orders ? (
-                        <Link
-                          href={`/orders/${p.orders.id}`}
-                          className="block truncate text-sm font-bold hover:text-accent"
-                        >
-                          {p.orders.title}
-                        </Link>
-                      ) : (
-                        <span className="text-sm font-bold">Buyurtma o‘chirilgan</span>
-                      )}
+                      {/* Developers cannot read the orders table (RLS), so the
+                          embedded title may be null — the link always works via
+                          the proposal's own order_id. */}
+                      <Link
+                        href={`/orders/${p.order_id}`}
+                        className="block truncate text-sm font-bold hover:text-accent"
+                      >
+                        {p.orders?.title ?? "Buyurtma"}
+                      </Link>
                       <p className="mt-0.5 text-[11px] font-semibold text-muted">
                         ${p.price} · {p.duration}
                       </p>
