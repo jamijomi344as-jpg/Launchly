@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Eye, Star, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, Eye, Star, Trophy, Users } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { siteUrl } from "@/lib/config";
-import type { OwnerRef } from "@/lib/types";
+import type { OwnerRef, Tag } from "@/lib/types";
 import {
   cn,
   formatDate,
@@ -15,7 +15,9 @@ import {
   ROLE_LABEL,
   ROLE_STYLE
 } from "@/lib/utils";
+import { fetchSimilarProjects } from "@/lib/discover";
 import ProjectActions from "@/components/project-actions";
+import ProjectCard from "@/components/project-card";
 import Comments from "@/components/comments";
 import RateCard from "@/components/rate-card";
 import { EmptyState } from "@/components/ui";
@@ -38,16 +40,27 @@ interface ProjectPageData {
   created_at: string;
   updated_at: string;
   profiles: OwnerRef | null;
+  project_tags?: Array<{ tags: Tag | null }> | null;
 }
 
 async function fetchProject(slug: string) {
   const supabase = createServerSupabase();
   if (!supabase) return null;
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("projects")
-    .select("*, profiles(id, full_name, avatar_url, role)")
+    .select(
+      "*, profiles(id, full_name, avatar_url, role), project_tags(tags(id, name, slug))"
+    )
     .eq("slug", slug)
     .maybeSingle();
+  if (error) {
+    // Tag migratsiyasi qo'llanmagan bo'lsa — embedsiz qayta urinish.
+    ({ data, error } = await supabase
+      .from("projects")
+      .select("*, profiles(id, full_name, avatar_url, role)")
+      .eq("slug", slug)
+      .maybeSingle());
+  }
   if (error || !data) return null;
   return data as ProjectPageData;
 }
@@ -155,6 +168,24 @@ export default async function ProjectPage({ params }: { params: { slug: string }
       : null;
   const commentCount = commentsCountRes.count ?? 0;
   const owner = project.profiles;
+  const projectTags: Tag[] = (project.project_tags ?? [])
+    .map((pt) => pt.tags)
+    .filter((t): t is Tag => t != null);
+
+  // Haftalik TOP-3 g'olibi va o'xshash loyihalar (migratsiya qo'llanmagan
+  // bo'lsa xatolik o'rniga bo'sh natija).
+  const [winnerRes, similar] = await Promise.all([
+    db
+      .from("weekly_winners")
+      .select("id, rank")
+      .eq("project_id", project.id)
+      .order("rank", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+      .then((r) => r, () => null),
+    fetchSimilarProjects(project.id, 3)
+  ]);
+  const isWeeklyWinner = !!winnerRes?.data;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -221,6 +252,21 @@ export default async function ProjectPage({ params }: { params: { slug: string }
               {PROJECT_STATUS_LABEL[project.status as keyof typeof PROJECT_STATUS_LABEL] ?? project.status}
             </span>
             <span className="badge bg-surface-2 text-muted">{project.category}</span>
+            {projectTags.map((t) => (
+              <Link
+                key={t.id}
+                href={`/tags/${t.slug}`}
+                className="badge bg-accent-soft font-semibold text-accent transition hover:bg-accent hover:text-white"
+                title={`${t.name} tagidagi loyihalar`}
+              >
+                {t.name}
+              </Link>
+            ))}
+            {isWeeklyWinner && (
+              <span className="badge gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400" title="Haftalik TOP-3 g'olibi">
+                <Trophy size={12} /> Hafta g‘olibi
+              </span>
+            )}
             <span className="ml-auto text-xs text-muted">
               Joylangan: {formatDate(project.created_at)}
             </span>
@@ -249,6 +295,22 @@ export default async function ProjectPage({ params }: { params: { slug: string }
               <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-ink/90">
                 {project.description}
               </p>
+            </section>
+          )}
+
+          {similar.length > 0 && (
+            <section className="mt-10" aria-label="O‘xshash loyihalar">
+              <h2 className="text-lg font-extrabold tracking-tight">
+                O‘xshash loyihalar
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Bir xil taglarga ega boshqa loyihalar
+              </p>
+              <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {similar.map((p) => (
+                  <ProjectCard key={p.id} project={p} />
+                ))}
+              </div>
             </section>
           )}
 

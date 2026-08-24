@@ -48,11 +48,37 @@ export interface Project {
   updated_at: string;
 }
 
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+/** Tag + shu tagdagi loyihalar soni (tag_counts view). */
+export interface TagWithCount extends Tag {
+  project_count: number;
+}
+
+export interface WeeklyWinner {
+  id: string;
+  week_start: string;
+  project_id: string;
+  rank: number;
+  score: number;
+  created_at: string;
+}
+
 export interface ProjectCardData extends Project {
   profiles: OwnerRef | null;
   ratingAvg: number | null;
   ratingCount: number;
   commentCount: number;
+  /** Loyihaga bog'langan taglar (project_tags(tags(...)) embed orqali). */
+  tags: Tag[];
+  /** Haftalik TOP-3'ga kirgan (weekly_winners). */
+  isWinner?: boolean;
+  /** Oxirgi 24 soatda trend (trending_projects). */
+  isTrending?: boolean;
 }
 
 export interface ProjectComment {

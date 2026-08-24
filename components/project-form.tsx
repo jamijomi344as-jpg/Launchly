@@ -1,15 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImagePlus, Loader2, UploadCloud, X } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-browser";
 import { isSupabaseConfigured } from "@/lib/config";
 import { PROJECT_CATEGORIES, slugify } from "@/lib/utils";
+import type { Tag } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "./ui";
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_MB = 4;
+const MAX_TAGS = 3;
 
 interface FormState {
   title: string;
@@ -42,6 +45,29 @@ export default function ProjectForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    // Tag katalogi migratsiyada hali yaratilmagan bo'lsa — jimboyib o'tamiz.
+    void supabase
+      .from("tags")
+      .select("id, name, slug")
+      .order("name")
+      .then(({ data, error }) => {
+        if (!error && data) setTags(data as Tag[]);
+      });
+  }, []);
+
+  function toggleTag(id: number) {
+    setSelectedTagIds((prev) => {
+      if (prev.includes(id)) return prev.filter((t) => t !== id);
+      if (prev.length >= MAX_TAGS) return prev;
+      return [...prev, id];
+    });
+  }
 
   if (!isSupabaseConfigured()) {
     return (
@@ -108,7 +134,9 @@ export default function ProjectForm() {
         imageUrls.push(pub.publicUrl);
       }
 
-      const { error: insErr } = await supabase.from("projects").insert({
+      const { data: inserted, error: insErr } = await supabase
+        .from("projects")
+        .insert({
         owner_id: uid,
         title: form.title.trim(),
         slug: form.slug.trim(),
@@ -119,7 +147,9 @@ export default function ProjectForm() {
         images: imageUrls,
         demo_url: form.demo_url.trim() || null,
         repo_url: form.repo_url.trim() || null
-      });
+      })
+      .select("id")
+      .single();
       if (insErr) {
         if (insErr.code === "23505") {
           setServerError("Bu slug allaqachon band. Boshqa nom tanlab ko‘ring.");
@@ -130,6 +160,17 @@ export default function ProjectForm() {
         }
         return;
       }
+
+      // Tanlangan taglarni bog'lash (maksimum 3).
+      if (selectedTagIds.length > 0 && inserted?.id) {
+        await supabase.from("project_tags").insert(
+          selectedTagIds.map((tag_id) => ({
+            project_id: inserted.id,
+            tag_id
+          }))
+        );
+      }
+
       router.push(`/p/${form.slug.trim()}`);
       router.refresh();
     } catch (err) {
@@ -228,6 +269,51 @@ export default function ProjectForm() {
           </select>
         </div>
       </div>
+
+      {tags.length > 0 && (
+        <div>
+          <span className="label" id="pf-tags-label">
+            Taglar{" "}
+            <span className="font-normal text-muted">
+              (ixtiyoriy, eng ko‘pi bilan {MAX_TAGS} ta)
+            </span>
+          </span>
+          <div
+            role="group"
+            aria-labelledby="pf-tags-label"
+            className="flex flex-wrap gap-2"
+          >
+            {tags.map((t) => {
+              const selected = selectedTagIds.includes(t.id);
+              const disabled =
+                !selected && selectedTagIds.length >= MAX_TAGS;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={disabled}
+                  onClick={() => toggleTag(t.id)}
+                  title={disabled ? `Eng ko‘pi bilan ${MAX_TAGS} ta tag` : undefined}
+                  className={cn(
+                    "chip transition",
+                    selected
+                      ? "!bg-accent !text-white"
+                      : "hover:text-ink",
+                    disabled && "cursor-not-allowed opacity-40"
+                  )}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">
+            Taglar loyihangiz tegishli yo‘nalishlarni ko‘rsatadi — katalog
+            sahifalarida (/tags/…) ko‘rinadi va qidiruvga tushadi.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
