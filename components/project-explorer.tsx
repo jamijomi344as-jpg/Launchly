@@ -4,12 +4,20 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-browser";
-import type { ProjectCardData } from "@/lib/types";
+import type { ProjectCardData, Tag } from "@/lib/types";
 import { cn, withProjectMetrics } from "@/lib/utils";
 import ProjectCard from "./project-card";
 import { EmptyState, ErrorState, SkeletonGrid } from "./ui";
 
-type SortKey = "new" | "likes" | "rating";
+type SortKey = "new" | "likes" | "rating" | "hot";
+
+const PROJECT_SELECT =
+  "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score), project_tags(tags(id, name, slug))";
+
+// 20260901 migratsiyasi hali qo'llanmagan bazada project_tags embed'i
+// ishlamaydi — bu zaxira so'rov tagsiz ko'rsatadi.
+const PROJECT_SELECT_FALLBACK =
+  "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score)";
 
 export default function ProjectExplorer() {
   const [projects, setProjects] = useState<ProjectCardData[] | null>(null);
@@ -19,6 +27,13 @@ export default function ProjectExplorer() {
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<SortKey>("new");
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [activeTagIds, setActiveTagIds] = useState<number[]>([]);
+  const [winnerIds, setWinnerIds] = useState<Set<string>>(new Set());
+  const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
+  // Server-side FTS natijalari (search_projects RPC); null → lokal filtr.
+  const [rpcProjects, setRpcProjects] = useState<ProjectCardData[] | null>(null);
+  const [rpcBusy, setRpcBusy] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -28,12 +43,17 @@ export default function ProjectExplorer() {
       setProjects([]);
       return;
     }
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("projects")
-      .select(
-        "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score)"
-      )
+      .select(PROJECT_SELECT)
       .order("created_at", { ascending: false });
+    if (error) {
+      // Tag migratsiyasi qo'llanmagan bo'lishi mumkin — embedsiz qayta urinish.
+      ({ data, error } = await supabase
+        .from("projects")
+        .select(PROJECT_SELECT_FALLBACK)
+        .order("created_at", { ascending: false }));
+    }
     if (error) {
       setError(true);
       return;
@@ -46,12 +66,63 @@ export default function ProjectExplorer() {
         .eq("user_id", session.user.id);
       setLikedIds(new Set((likes ?? []).map((l) => l.project_id)));
     }
-    setProjects((data ?? []).map(withProjectMetrics));
+
+    const rows = (data ?? []).map(withProjectMetrics);
+    setProjects(rows);
+
+    // Tag katalogi + haftalik g'oliblar + trend — migratsiya hali
+    // qo'llanmagan bo'lsa xatoliklarni jimboyib o'tamiz.
+    supabase
+      .from("tags")
+      .select("id, name, slug")
+      .order("name")
+      .then(({ data }) => {
+        if (data) setTags(data as Tag[]);
+      });
+    supabase
+      .from("weekly_winners")
+      .select("project_id")
+      .then(({ data }) => {
+        if (data)
+          setWinnerIds(
+            new Set(data.map((w: { project_id: string }) => w.project_id))
+          );
+      });
+    supabase
+      .from("trending_projects")
+      .select("project_id")
+      .then(({ data }) => {
+        if (data)
+          setTrendingIds(
+            new Set(data.map((t: { project_id: string }) => t.project_id))
+          );
+      });
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Server-side full-text qidiruv (Postgres websearch_to_tsquery).
+  const q = search.trim();
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase || q.length < 2) {
+      setRpcProjects(null);
+      setRpcBusy(false);
+      return;
+    }
+    setRpcBusy(true);
+    const timer = setTimeout(async () => {
+      const { data, error: rpcError } = await supabase
+        .rpc("search_projects", { p_query: q, p_limit: 60 })
+        .select(PROJECT_SELECT);
+      // RPC mavjud bo'lmasa (migratsiya qo'llanmagan) → lokal ILIKE filtrga qaytamiz.
+      setRpcProjects(rpcError || !data ? null : (data ?? []).map(withProjectMetrics));
+      setRpcBusy(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const categories = useMemo(() => {
     if (!projects) return [];
@@ -61,26 +132,50 @@ export default function ProjectExplorer() {
   }, [projects]);
 
   const filtered = useMemo(() => {
-    if (!projects) return [];
-    const q = search.trim().toLowerCase();
-    let list = projects.filter((p) => {
+    const base = rpcProjects ?? projects;
+    if (!base) return [];
+    const useRpc = rpcProjects !== null;
+    const activeTags = new Set(activeTagIds);
+    let list = base.filter((p) => {
       if (category !== "all" && p.category !== category) return false;
       if (status !== "all" && p.status !== status) return false;
-      if (!q) return true;
+      if (
+        activeTags.size > 0 &&
+        !p.tags?.some((t) => activeTags.has(t.id))
+      )
+        return false;
+      if (!q || useRpc) return true;
+      // Lokal zaxira filtri (RPC ishlamasa).
       const ownerName = p.profiles?.full_name ?? "";
-      return (
-        p.title.toLowerCase().includes(q) ||
-        p.short_description.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        ownerName.toLowerCase().includes(q)
-      );
+      const tagText = (p.tags ?? []).map((t) => `${t.name} ${t.slug}`).join(" ");
+      const haystack =
+        `${p.title} ${p.short_description} ${p.description} ${p.category} ${tagText} ${ownerName}`.toLowerCase();
+      return haystack.includes(q.toLowerCase());
     });
     list = [...list];
     if (sort === "likes") list.sort((a, b) => b.likes_count - a.likes_count);
     else if (sort === "rating")
       list.sort((a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0));
+    else if (sort === "hot")
+      list.sort(
+        (a, b) =>
+          Number(b.isTrending ?? false) - Number(a.isTrending ?? false) ||
+          b.likes_count - a.likes_count
+      );
     return list;
-  }, [projects, search, category, status, sort]);
+  }, [projects, rpcProjects, q, category, status, sort, activeTagIds]);
+
+  function toggleTag(id: number) {
+    setActiveTagIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  }
+
+  const decorated = (p: ProjectCardData) => ({
+    ...p,
+    isWinner: winnerIds.has(p.id) || undefined,
+    isTrending: trendingIds.has(p.id) || undefined
+  });
 
   return (
     <div>
@@ -96,9 +191,14 @@ export default function ProjectExplorer() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Loyiha, tavsif yoki muallif bo‘yicha qidirish…"
+              placeholder="Loyiha, tag, kategoriya yoki muallif bo‘yicha qidirish…"
               className="input !pl-10"
             />
+            {rpcBusy && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-wide text-muted">
+                FTS
+              </span>
+            )}
           </label>
           <div className="flex gap-3">
             <label className="sr-only" htmlFor="status-filter">
@@ -128,6 +228,7 @@ export default function ProjectExplorer() {
               <option value="new">Eng yangi</option>
               <option value="likes">Eng ko‘p yoqtirilgan</option>
               <option value="rating">Eng yuqori reyting</option>
+              <option value="hot">🔥 Trenddagiilar</option>
             </select>
           </div>
         </div>
@@ -156,6 +257,40 @@ export default function ProjectExplorer() {
                 {c}
               </button>
             ))}
+          </div>
+        )}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Tag filtri">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted">
+              Taglar:
+            </span>
+            {tags.map((t) => {
+              const active = activeTagIds.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleTag(t.id)}
+                  aria-pressed={active}
+                  title="Tag bo‘yicha filtrlash"
+                  className={cn(
+                    "chip transition hover:text-ink",
+                    active && "!bg-accent !text-white"
+                  )}
+                >
+                  {t.name}
+                </button>
+              );
+            })}
+            {activeTagIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTagIds([])}
+                className="text-xs font-bold text-accent underline-offset-2 hover:underline"
+              >
+                Tozalash
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -189,7 +324,7 @@ export default function ProjectExplorer() {
           {filtered.map((p) => (
             <ProjectCard
               key={p.id}
-              project={p}
+              project={decorated(p)}
               initialLiked={likedIds.has(p.id)}
             />
           ))}

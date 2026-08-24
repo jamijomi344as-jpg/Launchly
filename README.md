@@ -62,12 +62,26 @@ npm run lint    # ESLint (next/core-web-vitals)
 
    U xavfsiz bo‘lgan orders RLS’ni o‘rnatadi, `open_orders` view va RPC’larni qo‘shadi, triggerlar va Realtime’ni ta’minlaydi. Toza bazada qo‘shimcha ishlar sizga kerak emas (schema.sql hammasini qamrab oladi), lekin yuborish zarar bermaydi.
 
-4. **Authentication sozlashi** (Dashboard → Authentication):
+4. **Tag tizimi, FTS qidiruv va haftalik reyting uchun** migration yuboring:
+
+   ```
+   supabase/migrations/20260901_tags_and_ranking.sql
+   ```
+
+   U quyidagilarni qo‘shadi:
+   - `tags` + `project_tags` (ko‘p-tagli tizim, har loyihada maksimum 3 tag, oldindan to‘ldirilgan 18 tag);
+   - `projects.search_vector` (weighted tsvector + GIN index) va `search_projects()` RPC — Postgres `websearch_to_tsquery` asosidagi qidiruv (tag va kategoriya bo‘yicha ham topadi);
+   - `project_scores` view — `(likes*2 + ratingAvg*10 + comments*3) / pow(soat+2, 1.5)` HN-uslubidagi reyting;
+   - `weekly_winners` jadvali, `snapshot_weekly_winners()` funksiyasi va pg_cron job (dushanba 00:05) — haftalik TOP-3 arxivi (`/archive` sahifasi);
+   - `trending_projects` (oxirgi 24 soatdagi 🔥 trend) va `tag_counts` (tag katalogi) view’lari;
+   - yangi jadvallar uchun RLS: tags hammaga o‘qiladi, `project_tags`ni faqat loyiha egasi yozadi.
+
+5. **Authentication sozlashi** (Dashboard → Authentication):
    - Email/Password provider yo‘q (default yoqilgan).
    - Google kerak bo‘lsa: Providers → Google — Client ID/Secret kiriting, redirect URL ga `https://SIZNING-DOMAIN.uz/auth/callback` ni qo‘shing.
    - Email tasdiqlash (confirm email) yoqilgan bo‘lsa, callback orqali sessiya o‘z-o‘zidan tekshiriladi.
 
-5. `.env.local` ga `https://...` va anon key’ni yozib, `npm run dev`.
+6. `.env.local` ga `https://...` va anon key’ni yozib, `npm run dev`.
 
 ### Xavfsizlik eslatmalari
 

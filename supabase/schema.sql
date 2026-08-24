@@ -6,6 +6,8 @@
 --   The file is safe to run multiple times (idempotent).
 --   If your database was created from an OLDER schema version, also run
 --   supabase/migrations/20260824_harden_orders.sql afterwards.
+--   For the tag system, full-text search and weekly ranking run
+--   supabase/migrations/20260901_tags_and_ranking.sql afterwards.
 --
 -- Security model (summary):
 --   * RLS is enabled on every table.

@@ -11,7 +11,8 @@ const LINKS = [
   { href: "/", label: "Bosh sahifa" },
   { href: "/projects", label: "Loyihalar" },
   { href: "/products", label: "Mahsulotlar" },
-  { href: "/marketplace", label: "Buyurtma bozori" }
+  { href: "/marketplace", label: "Buyurtma bozori" },
+  { href: "/archive", label: "G‘oliblar" }
 ];
 
 export interface NavUser {

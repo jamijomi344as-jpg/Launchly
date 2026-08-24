@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bookmark, Eye, Heart, MessageCircle, Star } from "lucide-react";
+import { Bookmark, Eye, Flame, Heart, MessageCircle, Star, Trophy } from "lucide-react";
 import { getSupabase } from "@/lib/supabase-browser";
 import type { ProjectCardData } from "@/lib/types";
 import { cn, formatCompact, initials, PROJECT_STATUS_LABEL, PROJECT_STATUS_STYLE } from "@/lib/utils";
@@ -109,6 +109,25 @@ export default function ProjectCard({
         <span className={cn("badge absolute left-3 top-3 backdrop-blur", PROJECT_STATUS_STYLE[project.status])}>
           {PROJECT_STATUS_LABEL[project.status]}
         </span>
+        {project.isWinner && (
+          <span
+            className="badge absolute right-3 top-3 gap-1 bg-amber-500/90 text-white backdrop-blur"
+            title="Haftalik TOP-3 g'olibi"
+          >
+            <Trophy size={12} /> TOP
+          </span>
+        )}
+        {project.isTrending && (
+          <span
+            className={cn(
+              "badge absolute right-3 gap-1 bg-orange-500/90 text-white backdrop-blur",
+              project.isWinner ? "top-11" : "top-3"
+            )}
+            title="Oxirgi 24 soatda trend"
+          >
+            <Flame size={12} /> Trend
+          </span>
+        )}
       </Link>
 
       <div className="flex flex-1 flex-col p-4">
@@ -127,6 +146,21 @@ export default function ProjectCard({
         <p className="mt-1 line-clamp-2 text-sm text-muted">
           {project.short_description || "Tavsif kiritilmagan"}
         </p>
+
+        {project.tags && project.tags.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {project.tags.map((t) => (
+              <Link
+                key={t.id}
+                href={`/tags/${t.slug}`}
+                className="badge bg-surface-2 font-semibold text-muted transition hover:bg-accent-soft hover:text-accent"
+                title={`${t.name} tagidagi loyihalar`}
+              >
+                {t.name}
+              </Link>
+            ))}
+          </div>
+        )}
 
         {owner && (
           <Link

@@ -5,6 +5,7 @@ import type {
   ProjectCardData,
   ProposalStatus,
   ProjectStatus,
+  Tag,
   UserRole
 } from "./types";
 
@@ -91,7 +92,7 @@ export function slugify(input: string): string {
     .slice(0, 60);
 }
 
-/** Maps a raw Supabase row (with embedded profiles/comments/ratings) to card data. */
+/** Maps a raw Supabase row (with embedded profiles/comments/ratings/tags) to card data. */
 export function withProjectMetrics(
   row: Project & {
     profiles?: OwnerRef | null;
@@ -101,6 +102,7 @@ export function withProjectMetrics(
       design_score: number;
       execution_score: number;
     }>;
+    project_tags?: Array<{ tags: Tag | null }>;
   }
 ): ProjectCardData {
   const ratings = row.project_ratings ?? [];
@@ -117,7 +119,10 @@ export function withProjectMetrics(
     ratingAvg:
       ratingAvg == null ? null : Math.round(ratingAvg * 10) / 10,
     ratingCount: ratings.length,
-    commentCount: (row.project_comments ?? []).length
+    commentCount: (row.project_comments ?? []).length,
+    tags: (row.project_tags ?? [])
+      .map((pt) => pt.tags)
+      .filter((t): t is Tag => t != null)
   };
 }
 

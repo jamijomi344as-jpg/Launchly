@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Briefcase, Rocket, ShoppingBag, TrendingUp } from "lucide-react";
+import { ArrowRight, Briefcase, Rocket, ShoppingBag, Tag as TagIcon, TrendingUp } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase-server";
 import type { OpenOrder, Product, ProjectCardData } from "@/lib/types";
 import {
@@ -10,20 +10,35 @@ import {
   ORDER_STATUS_STYLE,
   withProjectMetrics
 } from "@/lib/utils";
+import { fetchTagCounts, fetchTopProject } from "@/lib/discover";
 import ProjectCard from "@/components/project-card";
+import TopProjectBanner from "@/components/top-project-banner";
 import { ErrorState, SectionHeading, SkeletonGrid } from "@/components/ui";
 
 export default async function HomePage() {
   const supabase = createServerSupabase();
-  const [projects, orders, products] = await Promise.all([
+  const [projects, orders, products, top, popularTags] = await Promise.all([
     supabase
       ? supabase
           .from("projects")
           .select(
-            "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score)"
+            "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score), project_tags(tags(id, name, slug))"
           )
           .order("created_at", { ascending: false })
           .limit(6)
+          .then(async (res) => {
+            // Tag migratsiyasi qo'llanmagan bo'lsa — embedsiz qayta urinish.
+            if (res.error) {
+              return await supabase!
+                .from("projects")
+                .select(
+                  "*, profiles(id, full_name, avatar_url, role), project_comments(id), project_ratings(idea_score, design_score, execution_score)"
+                )
+                .order("created_at", { ascending: false })
+                .limit(6);
+            }
+            return res;
+          })
       : Promise.resolve({ data: null, error: null }),
     supabase
       ? supabase
@@ -38,7 +53,11 @@ export default async function HomePage() {
           .select("*, profiles(id, full_name, avatar_url, role)")
           .order("created_at", { ascending: false })
           .limit(4)
-      : Promise.resolve({ data: null, error: null })
+      : Promise.resolve({ data: null, error: null }),
+    // Haftaning TOP loyihasi (project_scores view) + mashhur taglar.
+    // Migratsiya qo'llanmagan bo'lsa null qaytadi — bloklar ko'rinmaydi.
+    fetchTopProject(),
+    fetchTagCounts(12)
   ]);
 
   let likedIds = new Set<string>();
@@ -91,6 +110,13 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Haftaning TOP loyihasi — project_scores view bo'yicha */}
+      {top && (
+        <section className="container-site -mt-8 pb-4 sm:-mt-10" aria-label="Haftaning TOP loyihasi">
+          <TopProjectBanner project={top.project} score={top.score} />
+        </section>
+      )}
+
       {/* Recent projects */}
       <section className="container-site py-12">
         <SectionHeading
@@ -131,6 +157,37 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {/* Kategoriyalar (taglar) bo'yicha ko'rish */}
+      {popularTags.length > 0 && (
+        <section className="container-site pb-12" aria-label="Kategoriyalar bo'yicha ko'rish">
+          <SectionHeading
+            title="Kategoriyalar bo‘yicha ko‘rish"
+            subtitle="Yo‘nalish bo‘yicha loyihalarni kashf eting — har bir kategoriya alohida sahifada"
+          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {popularTags.map((t) => (
+              <Link
+                key={t.id}
+                href={`/tags/${t.slug}`}
+                className="card group flex items-center justify-between gap-2 p-4 transition hover:-translate-y-0.5 hover:shadow-card"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
+                    <TagIcon size={15} />
+                  </span>
+                  <span className="truncate text-sm font-bold transition group-hover:text-accent">
+                    {t.name}
+                  </span>
+                </span>
+                <span className="badge shrink-0 bg-surface-2 text-muted">
+                  {t.project_count} loyiha
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Marketplace preview */}
       <section className="border-y border-line bg-surface">
