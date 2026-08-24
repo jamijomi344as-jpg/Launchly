@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #18212f;
+  --muted: #7d8593;
+  --line: #e8e9e6;
+  --paper: #fbfbf9;
+  --purple: #6857e5;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+}
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+.float-slow { animation: float-slow 6s ease-in-out infinite; }
+
+@keyframes pulse-soft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(104, 87, 229, .22); }
+  50% { box-shadow: 0 0 0 8px rgba(104, 87, 229, 0); }
+}
+.pulse-soft { animation: pulse-soft 2.5s ease-in-out infinite; }
+
+/* Decorative project previews */
+.project-preview { overflow: hidden; position: relative; }
+.project-preview::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, rgba(255,255,255,.2), transparent 40%, rgba(255,255,255,.12));
+  pointer-events: none;
+}
+.grid-noise {
+  background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark-shell header, .dark-shell aside { background: #131923; border-color: #283243; }
+.dark-shell .bg-white { background: #1d2634; }
+.dark-shell [class*="border-[#e8e9e6]"], .dark-shell [class*="border-[#e6e7e4]"], .dark-shell [class*="border-[#f0f0ed]"] { border-color: #283243; }
+.dark-shell [class*="text-[#18212F]"] { color: #f8f8f4; }
+.dark-shell [class*="text-[#68717e]"], .dark-shell [class*="text-[#7d8593]"], .dark-shell [class*="text-[#858c96]"] { color: #aab2c0; }
+
+@media (max-width: 1023px) {
+  .sidebar-shell { transform: translateX(-100%); transition: transform .25s ease; }
+  .sidebar-shell.open { transform: translateX(0); }
+  .mobile-backdrop { display: block !important; }
+}
