@@ -1,20 +1,32 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: ["./app/**/*.{js,ts,jsx,tsx,mdx}", "./components/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
-        ink: "#18212F",
-        purple: "#6857E5",
-        cream: "#F7F7F3"
+        bg: "rgb(var(--bg) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        "surface-2": "rgb(var(--surface-2) / <alpha-value>)",
+        ink: "rgb(var(--ink) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        line: "rgb(var(--line) / <alpha-value>)",
+        accent: {
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          soft: "rgb(var(--accent-soft) / <alpha-value>)"
+        }
       },
       boxShadow: {
-        card: "0 14px 35px rgba(24, 33, 47, 0.07)",
-        soft: "0 5px 18px rgba(24, 33, 47, 0.06)"
+        card: "0 14px 35px rgba(24, 33, 47, 0.08)",
+        soft: "0 2px 10px rgba(24, 33, 47, 0.05)"
+      },
+      maxWidth: {
+        site: "72rem"
       }
     }
   },
   plugins: []
 };
+
 export default config;
