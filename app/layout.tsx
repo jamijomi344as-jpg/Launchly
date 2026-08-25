@@ -3,6 +3,7 @@ import "./globals.css";
 import Nav from "@/components/nav";
 import Footer from "@/components/footer";
 import EnvBanner from "@/components/env-banner";
+import Onboarding from "@/components/onboarding";
 import { createServerSupabase, getServerUser } from "@/lib/supabase-server";
 
 export const metadata: Metadata = {
@@ -72,6 +73,7 @@ export default async function RootLayout({
         />
         <main className="flex-1">{children}</main>
         <Footer />
+        <Onboarding />
       </body>
     </html>
   );
