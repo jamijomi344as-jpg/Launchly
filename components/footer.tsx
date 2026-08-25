@@ -1,4 +1,5 @@
 import Link from "next/link";
+import IntroTrigger from "@/components/intro-trigger";
 
 export default function Footer() {
   return (
@@ -30,6 +31,7 @@ export default function Footer() {
           <Link className="transition hover:text-accent" href="/dashboard">
             Dashboard
           </Link>
+          <IntroTrigger className="transition hover:text-accent" />
         </nav>
         <p className="text-xs text-muted">
           © {new Date().getFullYear()} Launchly. Barcha huquqlar himoyalangan.
